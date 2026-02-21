@@ -1,32 +1,32 @@
-# Big Atomics M1
+# Big Atomics
 
 This repository contains a C++20 implementation of the `Cached-Memory-Efficient`
-Big Atomic algorithm from:
+Big Atomic algorithm and follow-on M2 work from:
 
 - Daniel Anderson, Guy Blelloch, Siddhartha Jayanti
 - "Big Atomics"
 - arXiv: [2501.07503](https://arxiv.org/abs/2501.07503)
 - ACM DOI: [10.1145/3710848.3710874](https://doi.org/10.1145/3710848.3710874)
 
-## Scope (M1)
+## Scope
 
-This milestone intentionally implements:
+Current implementation focuses on:
 
-- Algorithm 2 (`Cached-Memory-Efficient`) only
-- `load`, `store`, and `CAS` for wide trivially copyable structs
-- A pool-only reclamation path (`NodePool<T,3>`)
-- Unit tests plus a SeqLock comparison benchmark and trend gate
+- Algorithm 2 (`Cached-Memory-Efficient`) BigAtomic
+- Pool-based node reclamation
+- correctness tests, benchmark trend gate, repeat tearing gate
+- `CacheHash<K,V>` built on `BigAtomic<Entry>`
 
-This milestone intentionally excludes:
+Deferred:
 
 - Algorithm 1 / Algorithm 3
-- CacheHash or other data structures built on top
-- Packaging and install/export polish
+- SMR policy abstraction
 
 ## Build Prerequisites
 
 - CMake 3.21+
-- Visual Studio 2022 (x64 toolchain)
+- Visual Studio x64 toolchain (Windows path)
+- WSL2 + GCC for TSan path
 - Internet access during first configure (CPM downloads Catch2 + benchmark)
 
 ## Configure / Build / Test
@@ -39,7 +39,7 @@ cmake --build --preset debug
 ctest --preset debug-tests
 ```
 
-Release (includes benchmark trend gate):
+Release (includes benchmark trend gate + repeat tearing gate):
 
 ```powershell
 cmake --preset windows-msvc-release
@@ -47,9 +47,28 @@ cmake --build --preset release
 ctest --preset release-tests
 ```
 
-## Notes
+WSL2 TSan:
 
-- `BigAtomic<T>` enforces strict compile-time constraints in
-  `include/big_atomics/detail/constraints.hpp`.
-- `tagged_null` encodes a sentinel pointer and masks the version to 32 bits
-  to keep pointer patterns canonical-safe on x64 sanitizer/debug builds.
+```bash
+cmake --preset wsl2-gcc-tsan
+cmake --build --preset wsl2-tsan
+ctest --preset wsl2-tsan-tests
+```
+
+## Concurrency Gates
+
+- `BA_TEARING_REPEAT_COUNT` (default `200`) controls release repeat tearing gate.
+- benchmark trend gate writes:
+- `build/.../m1_bench_results.json`
+- `build/.../m1_bench_summary.txt`
+- tracing is centralized in `include/big_atomics/detail/trace.hpp`.
+- `BA_TRACE_CONCURRENCY` is enabled in Debug + RelWithDebInfo, disabled in Release.
+- any PR touching `include/big_atomics/` or `src/` should pass MSVC Debug/Release plus WSL2 TSan tests before merge.
+
+## CacheHash Constraints
+
+`CacheHash<K,V>` enforces:
+
+- `K` and `V` are trivially copyable/destructible and standard-layout
+- `K` and `V` have unique object representations
+- internal `Entry` satisfies `BigAtomicSafe<Entry>` via explicit layout/padding

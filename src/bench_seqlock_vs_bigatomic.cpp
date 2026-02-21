@@ -41,9 +41,11 @@ class SeqLock {
   }
 
   void store(const T& desired) noexcept {
-    sequence_.fetch_add(1, std::memory_order_release);
+    sequence_.fetch_add(1, std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_release);
     std::memcpy(&value_, &desired, sizeof(T));
-    sequence_.fetch_add(1, std::memory_order_release);
+    std::atomic_thread_fence(std::memory_order_release);
+    sequence_.fetch_add(1, std::memory_order_relaxed);
   }
 
  private:
@@ -57,7 +59,7 @@ SeqLock<ThreeWords> g_seq_lock(ThreeWords{1, 1, 1});
 static void BM_BigAtomic_Mixed(benchmark::State& state) {
   for (auto _ : state) {
     if ((state.thread_index() & 1) == 0) {
-      const ThreeWords value = g_big_atomic.load();
+      ThreeWords value = g_big_atomic.load();
       benchmark::DoNotOptimize(value);
     } else {
       const std::uint64_t n = static_cast<std::uint64_t>(state.iterations());
@@ -70,7 +72,7 @@ static void BM_BigAtomic_Mixed(benchmark::State& state) {
 static void BM_SeqLock_Mixed(benchmark::State& state) {
   for (auto _ : state) {
     if ((state.thread_index() & 1) == 0) {
-      const ThreeWords value = g_seq_lock.load();
+      ThreeWords value = g_seq_lock.load();
       benchmark::DoNotOptimize(value);
     } else {
       const std::uint64_t n = static_cast<std::uint64_t>(state.iterations());
@@ -82,8 +84,8 @@ static void BM_SeqLock_Mixed(benchmark::State& state) {
 
 void ApplyThreadRange(benchmark::internal::Benchmark* bench) {
   const int hw = static_cast<int>(std::thread::hardware_concurrency());
-  const int max_threads = hw > 0 ? hw : 8;
-  bench->DenseThreadRange(1, max_threads, 1)->UseRealTime();
+  const int max_threads = hw > 0 ? hw * 2 : 16;
+  bench->ThreadRange(1, max_threads)->UseRealTime();
 }
 
 }  // namespace

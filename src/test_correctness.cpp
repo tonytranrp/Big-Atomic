@@ -111,6 +111,7 @@ TEST_CASE("Reclaim stress under contention", "[correctness][reclaim]") {
   std::latch ready(kWriters + kReaders);
   std::atomic<bool> stop{false};
   std::atomic<std::uint64_t> read_count{0};
+  std::atomic<bool> tearing_found{false};
 
   auto writer = [&](int index) {
     ready.arrive_and_wait();
@@ -124,7 +125,11 @@ TEST_CASE("Reclaim stress under contention", "[correctness][reclaim]") {
   auto reader = [&]() {
     ready.arrive_and_wait();
     while (!stop.load(std::memory_order_acquire)) {
-      (void)value.ba_load();
+      const ThreeWords observed = value.ba_load();
+      if (!all_equal(observed)) {
+        tearing_found.store(true, std::memory_order_release);
+        return;
+      }
       read_count.fetch_add(1, std::memory_order_relaxed);
     }
   };
@@ -150,6 +155,7 @@ TEST_CASE("Reclaim stress under contention", "[correctness][reclaim]") {
   }
 
   REQUIRE(read_count.load(std::memory_order_acquire) > 0);
+  REQUIRE_FALSE(tearing_found.load(std::memory_order_acquire));
   const ThreeWords final_value = value.ba_load();
   REQUIRE(all_equal(final_value));
 }

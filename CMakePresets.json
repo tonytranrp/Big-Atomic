@@ -27,6 +27,18 @@
         "CMAKE_BUILD_TYPE": "Release",
         "BA_ENABLE_COMPILE_TESTS": "ON"
       }
+    },
+    {
+      "name": "wsl2-gcc-tsan",
+      "displayName": "WSL2 GCC TSan",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/wsl2-gcc-tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_CXX_FLAGS": "-fsanitize=thread -O1 -g",
+        "BA_ENABLE_COMPILE_TESTS": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -41,6 +53,11 @@
       "displayName": "Build Release",
       "configurePreset": "windows-msvc-release",
       "configuration": "Release"
+    },
+    {
+      "name": "wsl2-tsan",
+      "displayName": "Build WSL2 TSan",
+      "configurePreset": "wsl2-gcc-tsan"
     }
   ],
   "testPresets": [
@@ -60,6 +77,19 @@
       "configuration": "Release",
       "output": {
         "verbosity": "extra"
+      }
+    },
+    {
+      "name": "wsl2-tsan-tests",
+      "displayName": "Run WSL2 TSan Tests (No Benchmarks)",
+      "configurePreset": "wsl2-gcc-tsan",
+      "output": {
+        "verbosity": "extra"
+      },
+      "filter": {
+        "exclude": {
+          "label": "Benchmark"
+        }
       }
     }
   ]
